@@ -1,0 +1,950 @@
+---
+title: "DA5030: Data Mining and Machine Learning"
+author: "Ghada M. Alsebayel"
+output:
+  html_document:
+    df_print: paged
+---
+
+This project is submitted in partial fulfillment of the requirements to complete DA5030 Data Mining and Machine Learning at Khoury College of Computer Science- Northeastern University. </br> 
+Spring 2021.
+</br>
+
+## Introduction: 
+Family planning is essential to women's health, and access to contraceptives is a key enabler to achieve family planning. Access to contraceptives however can vary greatly among different countries, socioeconomic classes, religious and ethnic groups. Furthermore, with the overwhelmingly variant choices, sometimes even when granted access to contraceptives, women can find it difficult to choose the most appropriate contraceptive method that addresses their individual needs.</br> 
+In this project, machine learning is used as a tool to improve the delivery of family planning consultations. This is achieved by the following:</br>
+-	Identifying the demographic factors that contributes to lack of access to contraceptives. This in turn can aid in delivering better targeted educational campaigns.</br> 
+-	Predict the preferred method of contraception for women based on the preferences of others in the same demographic, socioeconomic group, which can potentially lower the confusion when choosing among different methods. </br>
+
+```{r Libraries,include=FALSE}
+library("tidyverse")
+library("dplyr")
+library("ggplot2")
+library("psych")
+library("ggpubr")
+library("gridExtra")
+library("rpart")
+library("rattle")
+library("nnet")
+library("plyr")
+library("class")
+library("e1071")
+library("C50")
+library("gmodels")
+library("neuralnet")
+library("randomForest")
+library("ipred")
+library("modeest")
+```
+
+## CRISP-DM Framework: 
+This project will follow the CRISP-DM standard. CRISP-DM stands for Cross-industry standard process for data mining. It is a standard model for processes in data mining projects. It consists of the following phases. 
+
+## Buisness Understanding:
+Indonesia is the world's largest island. It ended the year 1987 with a population of 169,149,000. The Indonesian government established a plan to achieve its developmental goals by announcing a population policy, which includes reducing the rate of population growth, achieving a redistribution of the population, adjusting economic factors, and creating prosperous families. </br>
+The National Indonesia Contraceptive Prevalence Survey(NICPS) was an initial step to achieving these goals. </br>
+
+## Data Understanding:
+The National Indonesia Contraceptive Prevalence Survey (NICPS) collected data on fertility and family planning in order to provide policy makers and program managers with information useful for evaluating and improving Indonesia's Family Planning Program. 
+The data obtained for this project is a subset of the <a href="https://dhsprogram.com/pubs/pdf/SR9/SR9.pdf">NICPS 1987.</a> It was obtained from the machine learning repository of The University of California- Irvine UCI. </br></br>
+To understand the data I am working with, I will begin by examining the the first couple of rows:
+```{r, echo = FALSE}
+## Loading the data
+data.url <- "https://archive.ics.uci.edu/ml/machine-learning-databases/cmc/cmc.data"
+download.file(url = data.url, destfile = "cmc.data")
+indo.contraceptives<- read.csv("cmc.data", header = FALSE, sep = ",", strip.white = TRUE)
+## Checking the structure of the data
+str(indo.contraceptives)
+## Renaming the variables 
+names(indo.contraceptives)<-c("w.age","w.education","h.education","num.children","w.religion","w.work","h.job","living.index","media","contraceptive")
+```
+
+```{r}
+## Checking the first couple of rows
+head(indo.contraceptives)
+```
+The data consists of 1473 observations with 10 variables. The semantics of each variable are shown in the following table: </br>
+<style>
+table {
+  font-family: arial, sans-serif;
+  border-collapse: collapse;
+  width: 100%;
+}
+td, th {
+  border: 1px solid  #000000;
+  text-align: left;
+  padding: 8px;
+}
+tr:nth-child(even) {
+  background-color: #dddddd;
+}
+</style>
+<body>
+<h2>Attributes Information:</h2>
+<table>
+  <tr>
+    <th>Attribute</th>
+    <th>Type</th>
+    <th>Meaning</th>
+  </tr>
+  <tr>
+    <td>w.age</td>
+    <td>Numerical</td>
+    <td>The age of the wife</td>
+  </tr>
+  <tr>
+    <td>w.education</td>
+    <td>Categorical</td>
+    <td>The educational level of the wife. It has 4 levels where: 1=Low, 2, 3, 4=High</td>
+  </tr>
+  <tr>
+    <td>h.education</td>
+    <td>Categorical</td>
+    <td>The educational level of the husband. It follows the same standard as the wife.</td>
+  </tr>
+  <tr>
+    <td>num.children</td>
+    <td>Numerical</td>
+    <td>The number of children ever born for the wife</td>
+  </tr>
+  <tr>
+    <td>w.religion</td>
+    <td>Binary</td>
+    <td>The religion of the wife. It is a binary variable where: 0=Non-Islam, 1=Islam</td>
+  </tr>
+    <tr>
+    <td>w.work</td>
+    <td>Binary</td>
+    <td>The status of the wife in the job market. It is a binary variable where: 0=Working, 1=Not-Working</td>
+  </tr>
+  <tr>
+    <td>h.job</td>
+    <td>Categorical</td>
+    <td>The husband's occupation </td>
+  </tr>
+   <tr>
+    <td>living.index</td>
+    <td>Categorical</td>
+    <td>Standard-of-living index. It is a categorical variable where: 1=Low, 2, 3, 4=High</td>
+  </tr>
+   <tr>
+    <td>media</td>
+    <td>Binary</td>
+    <td>The exposure to media. It is a Binary variable where:  0=Good exposure, 1=Not good</td>
+  </tr>
+   <tr>
+    <td>contraceptive</td>
+    <td>Categorical</td>
+    <td>The type of contraceptive method a women uses. Where:1=No-use, 2=Long-term, 3=Short-term</td>
+  </tr>
+</table>
+</body>
+Now that I have seen the structure of the data. I will dig a little bit deeper and do some data exploration with descriptive statistics. First we look into the age factor. </br>
+<b>1.Age: </b></br>
+```{r}
+summary(indo.contraceptives$w.age)
+sd(indo.contraceptives$w.age)
+## Plotting the age
+hist(indo.contraceptives$w.age,main="Distribution of The Age Factor for The Women in The Sample Data",
+xlab="Women's Age",
+col="pink", border = FALSE)
+```
+</br>
+The average age of the women who participated in the study is 32.54 while the range is between 16 and 49 years old. Given that women older than 49 years old are typically in menapose, that age group was excluded as it will probably skew the data. Women younger than 16 were not included either, this could be because teenage pregnancy is a different phenomenon that requires specifically designed analysis.</br>
+The standard deviation, a measure of data spread, is 8.2 years. </br>
+The diagram above shows the distribution of the age factor for the women in the study. </br></br>
+<b>2.Education Level:</b></br>
+When looking into the level of education for both the participating women and their spouses, we can see that both are quite educated </br>
+```{r, echo=FALSE}
+education<-as.data.frame(table(indo.contraceptives$w.education))
+colnames(education)<- c("Level","Women")
+education$Level<- factor(education$Level,
+levels = c(1,2,3,4),
+labels = c("Low education", "Medium low education", "Medium high education","High education"))
+education<- cbind(education,table(indo.contraceptives$h.education))
+education<-education[,-3]
+colnames(education)<- c("Education level","Women","Men")
+```
+
+```{r}
+head(education)
+```
+</br>
+```{r, echo=FALSE}
+## Grouping the females based on the education level
+countsFemale <- indo.contraceptives %>%group_by(w.education) %>% dplyr::summarise(count = n())
+## Grouping the males based on the education level
+countsMale <- indo.contraceptives %>%group_by(h.education) %>% dplyr::summarise(count = n())
+countsMale$gender <- "Male"
+countsFemale$gender <- "Female"
+colnames(countsFemale) <- c("Education", "Count", "Gender")
+colnames(countsMale) <- c("Education", "Count", "Gender")
+countsComb <- rbind(countsFemale, countsMale)
+## Plotting
+ggplot(countsComb, aes(x = Education, y = Count, fill = Gender)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  scale_x_discrete(limits =  c("Low", "Medium Low", "Medium High", "High")) + labs(x = "Education Level", y = "Frequency", title = "Distribution of Education Level in The Sample Data")
+```
+</br><b>3.The Number of Children Born per Women:</b>
+```{r, echo=FALSE}
+## Plotting
+hist(indo.contraceptives$num.children, main="The Number of Children Ever Born for Women in The Sample Data",
+xlab="Number of Children",
+col="orange" , border = FALSE)
+```
+```{r}
+summary(indo.contraceptives$num.children)
+```
+The mean number of children born per women = 3.261. The maximum number is 16. This is probably an outlier. To double check I will be Visualizing the data points which helps in detecting outliers. 
+
+```{r, echo=FALSE}
+## Plotting outliers
+boxplot(indo.contraceptives$num.children,
+  col = "darkred",
+  ylab = "Number of Children"
+)
+```
+</br>As anticipated, having more than 10 children is not the norm. I will be dealing with outliers in the next phase. For now, I will be looking into the next variable.
+</br>
+<b>4.Religion of the wife</b>
+```{r, echo=FALSE}
+religion<- as.data.frame(table(indo.contraceptives$w.religion))
+colnames(religion)<-c("Religion", "Count")
+religion$Religion<- as.character(religion$Religion)
+religion[1,1]<-"None Muslim"
+religion[2,1]<-" Muslim"
+head(religion)
+```
+```{r,echo =FALSE}
+## Plotting
+barplot(table(indo.contraceptives$w.religion), col="#FFC300", border = FALSE,names=c("None muslims","Muslims"), main = "Religion Distribution of Women in The Sample")
+```
+</br>
+The majority of the women who participated in the study were Muslims. They represent the following percentage of the whole population:
+```{r}
+religion[2,2]/sum(religion$Count)*100
+```
+</br>
+<b>5.Employment Status of Women in The Sample:</b></br>
+```{r, echo=FALSE}
+work<- as.data.frame(table(indo.contraceptives$w.work))
+colnames(work)<-c("Working_Status","Count")
+work$Working_Status<-as.character(work$Working_Status)
+work[1,1]<-"Working"
+work[2,1]<-" Not Working"
+head(work)
+```
+The majority of women in the sample are not working. They represent the following percentage of the whole population:
+```{r}
+work[2,2]/sum(work$Count)*100
+```
+
+```{r, echo=FALSE}
+## Plotting
+barplot(table(indo.contraceptives$w.work), col="#900C3F", border = FALSE,names=c("Working","Not working"), main = "Employment Status for The Women in The Sample")
+```
+</br>
+<b>6. Occupation of The Husband: </b>
+```{r, echo=FALSE}
+## Plotting
+hist(indo.contraceptives$h.job, main="The Distribution of Men's Occupation",
+xlab="Occupation Class", breaks = ((0:4+1)-0.5),
+col="#CCCCFF", border = FALSE)
+```
+</br>
+<b>7.Living Index: </b>
+For the living index, the study considers four categories: low income, medium low income, medium high income, and high income. The following diagram shows the distribution of the population based on living index. The majority of the participants are earning high income. 
+```{r, echo=FALSE}
+hist(indo.contraceptives$living.index, main="The Distribution of The Population in Terms of Living Index",
+xlab="Living Index", breaks = ((0:4+1)-0.5),
+col="#00AFBB", border = FALSE)
+```
+I was curious to know if there was a relationship between the living index and the use of contraceptives. So, I plotted the following diagram. It shows the used method of contraceptives in relation to living index. </br>
+```{r, echo=FALSE}
+ggplot(indo.contraceptives, aes(x = living.index, y = contraceptive)) + geom_count(fill = "#FFDB6D", color = "#C4961A") + scale_x_discrete(limits =  c("Low", "Medium Low", "Medium High", "High")) + scale_y_discrete(limits =  c("Not Using Contraceptives", "Long Term", "Short Term")) + xlab("Living Index")
+
+```
+</br>
+<b>8.Media Exposure: </b></br>
+```{r, echo=FALSE}
+barplot(table(indo.contraceptives$media), col="#69b3a2", border = FALSE,names=c("Good exposure","No exposure"), main = "Media Exposure in The Sample")
+```
+</br>
+The majority of the women in the study had good exposure to media. </br>
+
+</br><b>9.Contraceptive Method: </b></br>
+This is the target variable that I will be predicting the next sections of this report. The goal is to build a model that can predict which method of contraceptives a women uses based on her demographic data. </br>
+The data being used to build the models was collected in 1987, so new methods might have emerged. However, if the concept works with the given data, it could be extended to new data. </br>
+In this dataset, contraceptives were categorized into three classes; 1. Not using any contraceptives, 2. Using long term contraceptives, and 3. Using short term contraceptives. </br>
+Before modeling the data, it might be worthwhile to look into the target variable in relation to other variables. Since many of my variables are categorical, I will be using chi squared analysis.</br>
+```{r}
+## Investigating the distribution of contraceptive methods 
+table(indo.contraceptives$contraceptive)
+barplot(table(indo.contraceptives$contraceptive), col="#581845", border = FALSE,names=c("Not Using","Long Term","Short term"), main = "Distribution of Contraceptive Methods Used")
+## Probability distribution 
+prop.table(table(indo.contraceptives$contraceptive))
+## CHI square analysis for different variables
+chisq.test(indo.contraceptives$contraceptive, indo.contraceptives$w.education)
+```
+</br>Here, Since we have a p-value of less than the significance level of 0.05, we can reject the null hypothesis and conclude that the two variables are, indeed, independent. In other words, the use of contraceptives is not dependent on the women's education.</br>
+
+```{r}
+chisq.test(indo.contraceptives$contraceptive, indo.contraceptives$h.education)
+```
+</br> 
+Here the p-value is less than the significance level of 0.05, so the husband's education and the use of contraceptives are also independent variables. </br>
+
+```{r}
+chisq.test(indo.contraceptives$contraceptive, indo.contraceptives$w.religion)
+```
+</br> 
+The same applies the religion of the wife. </br>
+```{r}
+chisq.test(indo.contraceptives$contraceptive, indo.contraceptives$w.work)
+```
+</br>
+Here the p-value is greater than the significance level of 0.05, so we can assume that the women's choice of contraceptive is defendant on her work status </br>
+```{r}
+chisq.test(indo.contraceptives$contraceptive, indo.contraceptives$h.job)
+```
+
+</br> The use of contraceptives and the job of the husband are independant variables. </br>
+```{r}
+chisq.test(indo.contraceptives$contraceptive, indo.contraceptives$living.index)
+```
+
+</br>The use of contraceptives and the living index of the family are independent.</br>
+
+```{r}
+chisq.test(indo.contraceptives$contraceptive, indo.contraceptives$media)
+```
+</br>The use of contraceptives and the media exposure are also independent. </br>
+
+## Data Preparation:
+Now that I have completed the initial exploration of the data, I will start preparing my data for modeling. Data preparation involves handling missing values, standardizing the data, encoding categorical variables, data transformation, and feature re-engineering.</br>
+<b>1. Detecting and handling missing values:</b></br>
+```{r}
+print(sprintf("The number of missing values= %i",
+sum(is.na(indo.contraceptives))))
+```
+It looks like the original data does not have any null values. However, for the purpose of demonstration, I will remove some value at random then impute the missing value. </br> 
+
+```{r, echo=FALSE}
+indo.contraceptives$w.education<- as.factor(indo.contraceptives$w.education)
+indo.contraceptives$h.education<- as.factor(indo.contraceptives$h.education)
+indo.contraceptives$w.religion<- as.factor(indo.contraceptives$w.religion)
+indo.contraceptives$w.work<- as.factor(indo.contraceptives$w.work)
+indo.contraceptives$h.job<- as.factor(indo.contraceptives$h.job)
+indo.contraceptives$living.index<- as.factor(indo.contraceptives$living.index)
+indo.contraceptives$media<- as.factor(indo.contraceptives$media)
+indo.contraceptives$contraceptive<- as.factor(indo.contraceptives$contraceptive)
+```
+
+```{r}
+## Generating random column number
+rc<- sample(1:10, 1)
+## Generating random row number
+rr<- sample(1:1473, 1)
+## Now I will set the value to null
+indo.contraceptives[rr,rc]<- NA
+## Checking if it worked
+sum(is.na(indo.contraceptives))
+
+print(sprintf("The number of missing values= %i",
+sum(is.na(indo.contraceptives))))
+```
+It looks like the trick worked and now we have a null value in the dataset. I need to identify it then impute it. For imputation, I will use the mode for categorical variables and the mean for continues variables. 
+
+```{r}
+# Creating get mode function.
+getmode <- function(v) {
+   uniqv <- unique(v)
+   uniqv[which.max(tabulate(match(v, uniqv)))]
+}
+```
+
+```{r}
+## To identify the index of the missing value, I will loop
+## through the entire dataset. 
+for (i in c(1:10)) {
+  for (j in c(1:1473)) {
+    if(is.na(indo.contraceptives[j,i])){
+     ## At this point we found a missing value
+     print("The row number")
+     print(j)
+     print("The column number")
+     print(i)
+     ## Now that we have identified the index
+     ## I will call a method to impute the missing value 
+     ## if it is categorical
+     if(is.factor(indo.contraceptives[,i])){
+       indo.contraceptives[j,i]<- getmode(indo.contraceptives[,i])
+     }
+     ## else, I will use R's built in mean function
+     else {
+       indo.contraceptives[j,i]<- mean(indo.contraceptives[,i])       } 
+    }
+  }
+}
+## Checking if it worked
+sum(is.na(indo.contraceptives))
+```
+</br>
+It looks like the null value has been imputed successfully. 
+</br>
+
+<b>2.feature engineering: new derived features</b></br>
+```{r}
+## Calculating the date year for women in the sample
+birth.year<- 1987 - indo.contraceptives$w.age 
+```
+</br> 
+I could not think of any derived variable that can improve the classification process. But, for purposes of demonstration, I calculated the date of birth based on the age. </br>
+```{r}
+## Plotting the year of birth
+plot(table(birth.year))
+```
+</br>
+<b>3. Detecting outliers:</b></br>
+The continues variables in this dataset are only : w.age and num.childern. So, I will check these two variables for outliers.</br>
+
+```{r}
+boxplot(indo.contraceptives$w.age,
+  col = "darkgreen",
+  ylab = "Women Age"
+)
+
+```
+</br>It looks like there are no outliers in the age feature. So, let us re-examine the number of children born.</br>
+```{r}
+boxplot(indo.contraceptives$num.children,
+  col = "darkred",
+  ylab = "Number of Children"
+)
+```
+</br>It is clear from the boxplot that there are some high outliers in the number of children born per women. To confirm, I will look at the data distribution. </br> 
+```{r}
+## Visualizing the density plot 
+ggdensity(indo.contraceptives$num.children, 
+          main = "Density Plot of Number of Children per Women",
+          xlab = "Number of Children")
+## Performing shapiro test
+shapiro.test(indo.contraceptives$num.children)
+```
+It appears like we have a decent right-skew in our data. This is also confirmed with the Shapiro Wilk normality test. In Shapiro test p-value > 0.05 implies that the distribution of the data is not significantly different from normal distribution. In other words, we can assume the normality. Otherwise, we can not assume normal distribution. </br>
+In our case, it is quite obvious that we can not assume normality since the p-value is much smaller than 0.05.</br>
+
+Let us see if we can transform the feature to adjust the distribution</br>
+```{r, warning=FALSE}
+## Original data
+plot.1<- qplot(x=num.children, data = indo.contraceptives)
+## Log10 transformation
+plot.2<- qplot(x= log10(num.children + 1), data = indo.contraceptives)
+## sqrt transformation
+plot.3<- qplot(x= sqrt(num.children), data = indo.contraceptives)
+grid.arrange(plot.1,plot.2,plot.3, ncol=1)
+```
+</br> 
+There are many methods that can be used to transform the features to adjust distribution including; log and square root transformation. The above diagram shows the distribution before and after applying each of these techniques. It does not appear to do much help in adjusting the transformation. In the following section, I will examine data normalization and outliers removal.</br>  
+
+</br><b>4. Normalization of Feature Values:</b></br>
+```{r}
+## Creating a function to calculate z-score
+calculate_Z_score <- function(x){
+ return((x - mean(x)) / sd(x))
+}
+## Standardizing the numerical variables with z-score
+indo.contraceptives[,c(1,4)]<- lapply(indo.contraceptives[,c(1,4)], calculate_Z_score)
+range(indo.contraceptives$w.age)
+range(indo.contraceptives$num.children)
+```
+
+The normalization has been done successfully. </br>
+After normalizing the data we can remove outliers, for example the values that are more than 3 standard deviations from the mean.</br>
+The following code does that:</br>
+```{r}
+## Identifying outliers
+age_outliers <- filter(indo.contraceptives, abs(indo.contraceptives$w.age)>3)
+## Checking how many outliers we have
+nrow(age_outliers)
+## Identifying outliers
+child_outliers <- filter(indo.contraceptives, abs(indo.contraceptives$num.children)>3)
+## Checking how many outliers we have
+nrow(child_outliers)
+```
+
+</br>
+We have 18 outliers in the number of children born per women feature. I will remove these outliers next.</br>
+```{r}
+## Removing outliers 
+indo.contraceptives<- filter(indo.contraceptives, abs(indo.contraceptives$num.children)<3)
+## Re-exmining the box plot 
+boxplot(indo.contraceptives$num.children,
+  col = "darkred",
+  ylab = "Number of Children"
+)
+```
+</br>
+much better.
+</br>
+
+<b>5. Dummy Coding:</b></br>
+We have ten variables in the dataset. Two of those are continues and have been normalized in the previous section. In this section, dummy coding will be performed on the categorical variables.</b>
+```{r}
+## Dummy coding the w.education variable
+indo.contraceptives<- indo.contraceptives%>%
+  mutate(w.education.low = ifelse(w.education == "1" , 1, 0)) 
+indo.contraceptives<- indo.contraceptives%>%
+  mutate(w.education.mid = ifelse(w.education == "2" | w.education == "3", 1, 0)) 
+## Dummy coding the h.education
+indo.contraceptives<- indo.contraceptives%>%
+  mutate(h.education.low = ifelse(h.education == "1" , 1, 0)) 
+indo.contraceptives<- indo.contraceptives%>%
+  mutate(h.education.mid = ifelse(h.education == "2" | h.education == "3", 1, 0)) 
+## Since w.religion is already binary, I will not encode 
+## However, I will change the type to int
+indo.contraceptives$w.religion<- as.integer(indo.contraceptives$w.religion)
+## Same goes for the w.work
+indo.contraceptives$w.work<- as.integer(indo.contraceptives$w.work)
+## Dummy coding h.job
+indo.contraceptives<- indo.contraceptives%>%
+  mutate(h.job.first = ifelse(h.job == "1" , 1, 0)) 
+indo.contraceptives<- indo.contraceptives%>%
+  mutate(h.job.second = ifelse(h.job == "2" , 1, 0))
+indo.contraceptives<- indo.contraceptives%>%
+  mutate(h.job.third = ifelse(h.job == "3" , 1, 0))
+## Dummy coding the living.index variable
+indo.contraceptives<- indo.contraceptives%>%
+  mutate(living.index.low = ifelse(living.index == "1" , 1, 0))
+indo.contraceptives<- indo.contraceptives%>%
+  mutate(living.index.mid = ifelse(living.index == "2" |living.index == "3" , 1, 0)) 
+## Media is also binary, so I will just fix the type
+indo.contraceptives$media<- as.integer(indo.contraceptives$media)
+## Contraceptive is the target variable
+indo.contraceptives$contraceptive<- as.integer(indo.contraceptives$contraceptive)
+```
+
+```{r}
+## Removing un-needed columns, these are columns already encoded
+for (i in 1:10) {
+  if(is.factor(indo.contraceptives[,i])){
+    indo.contraceptives<-indo.contraceptives[,-i]
+    i<- i-1
+  }
+}
+```
+
+```{r, echo=FALSE}
+indo.contraceptives<-indo.contraceptives[,c(-2,-6)]
+```
+</br>
+
+<b>6. Identification of Principal Components(PCA):</b></br>
+It is not a good choice for this data set since most of the variables are categorical. For the purposes of demonstration it was implemented in the following code:</br>
+```{r}
+## PCA on the encoded, scaled dataset. 
+A1 = prcomp(indo.contraceptives)
+## Summary of the results
+summary(A1)
+plot(A1, type="l", main = "Principal Component Analysis")
+```
+
+## Modeling and Evaluation:
+This is a classification problem where we are trying to classify women into one of three groups in terms of their usage of contraceptives; long term, short term, and none. Since we have more than two classes, it is a multi-nominal problem. The classification is done based on demographic data and media exposure. </br>
+Before modeling, I will partition the data for training and testing purposes.</br>
+I will devote 75% of the data for training and the remaining 25% for testing. </br>
+</br>
+<b>Training and Testing Subsets:</b></br>
+```{r}
+## Checking the number of rows before partitioning 
+nrow(indo.contraceptives)
+## Partitioning
+index <- sample(1:nrow(indo.contraceptives), floor(0.75 * nrow(indo.contraceptives)))
+train <- indo.contraceptives[index,]
+test <- indo.contraceptives[-index,]
+## Checking the number of rows after partitioning
+nrow(train)
+nrow(test)
+```
+</br> Looks good!</br>
+Next step, I will start building the models.</br>
+I have chosen the following three models: </br>
+1. Decision Tree: </br>
+Decision trees are a supervised machine learning technique, where the data is continuously split according to a certain parameter. </br> 
+I have chosen to begin with decision trees because it has the advantage of being intuitive and easy to visualize. </br>
+## Decision Tree: 
+```{r}
+## Training the model 
+contraceptive.dt <- rpart(contraceptive ~. , data = train, method = "class")
+## Visualizing the decision tree
+fancyRpartPlot(contraceptive.dt)
+```
+</br>
+1 = no use </br>
+2 = long term</br>
+3= short term </br>
+It appears that the parameter used to make the initial split is the number of children born. In other words, the decision tree suggests that if a women has not had any children in the past, then she most likely is not using any contraceptives.</br> 
+It also suggests that a women who is older than 38 is more likely to be using no contraceptives. </br>
+Wife education is the next indicator, followed by another split based on the number of children. </br>
+I will check the accuracy of the decision tree using testing data</br>
+```{r}
+## Evaluation using testing data
+contraceptive.predict.1 <- predict(contraceptive.dt, test, type = "class")
+## Confusiom matrix
+table(contraceptive.predict.1, test$contraceptive)
+results <- contraceptive.predict.1 == test$contraceptive
+## Print the accuracy 
+print(sprintf("The accuracy using hold out method: %.3f percent", (accuracy <- sum(results) / length(results))*100))
+```
+</br>
+It appears that the accuracy of the decision tree is not optimal (in the mid 50%)</br>
+The confusion matrix shows that there was a fair amount of miss-classification in the testing data. </br>
+The method used to evaluate the model is called holdout method, where a portion of the data is held out from the training and is used to evaluate the accuracy.</br>
+Now, I will try another method of validation called K-Fold Cross Validation. </br>
+```{r, warning=FALSE}
+set.seed(123)
+form <- "contraceptive~ w.age+ num.children + w.religion + w.work + media + w.education.low+ w.education.mid+ h.education.low+ h.education.mid+ h.job.first+ h.job.second+ h.job.third+ living.index.low+ living.index.mid"
+folds <- split(indo.contraceptives, cut(sample(1:nrow(indo.contraceptives)),10))
+errs <- rep(NA, length(folds))
+for (i in 1:length(folds)) {
+ test <- ldply(folds[i], data.frame)
+ train <- ldply(folds[-i], data.frame)
+ tmp.model <- rpart(form , train, method = "class")
+ tmp.predict <- predict(tmp.model, newdata = test, type = "class")
+ conf.mat <- table(test$contraceptive, tmp.predict)
+ errs[i] <- 1-sum(diag(conf.mat))/sum(conf.mat)
+}
+print(sprintf("average error using k-fold cross-validation: %.3f percent", 100*mean(errs)))
+```
+</br> The average error with k-fold cross-validation is too high which validates the previous result.</br>
+I will try a different implementation of decision tree model next.</br>
+
+```{r}
+## Setting the target variable as factor 
+train$contraceptive<-as.factor(train$contraceptive)
+test$contraceptive<-as.factor(test$contraceptive)
+## Training the model 
+dt.2 <- C5.0(train[,-1],train$contraceptive)
+summary(dt.2)
+plot(dt.2)
+## Evaluating the model on the testing data
+dt.pred<- predict(dt.2, test[,-1])
+CrossTable(test$contraceptive, dt.pred, 
+           prop.chisq = FALSE, 
+           prop.c = FALSE, prop.r = FALSE, dnn = c('actual method', 'predicted method'))
+## Confusion matrix
+table(test$contraceptive, dt.pred)
+results <- dt.pred == test$contraceptive
+print(sprintf("The accuracy using the new decision tree: %.3f percent", (accuracy <- sum(results) / length(results))*100))
+```
+</br>
+The accuracy increased to 100%. But that is not exactly good news, it raise the concern of over fitting.</br>
+Let us try k-fold cross validation next:</br>
+
+```{r}
+set.seed(123)
+form <- "contraceptive~ w.age+ num.children + w.religion + w.work + media + w.education.low+ w.education.mid+ h.education.low+ h.education.mid+ h.job.first+ h.job.second+ h.job.third+ living.index.low+ living.index.mid"
+folds <- split(indo.contraceptives, cut(sample(1:nrow(indo.contraceptives)),10))
+errs <- rep(NA, length(folds))
+for (i in 1:length(folds)) {
+ test <- ldply(folds[i], data.frame)
+ train <- ldply(folds[-i], data.frame)
+ ## Setting the target variable as factor 
+ train[,7]<-as.factor(train[,7])
+ test[,7]<-as.factor(test[,7])
+ tmp.model <- C5.0(train[,-1],train$contraceptive)
+ tmp.predict <- predict(tmp.model, test[,-1])
+ conf.mat <- table(test$contraceptive, tmp.predict)
+ errs[i] <- 1-sum(diag(conf.mat))/sum(conf.mat)
+}
+print(sprintf("average error using k-fold cross-validation: %.3f percent", 100*mean(errs)))
+```
+</br>
+The average error is 0 which confirms the previous finding. 
+</br>
+
+```{r, echo=FALSE}
+## We can try boosting to tune the model
+##dt_boost10 <- C5.0(train[c(-1,-9)], train$contraceptive, trials = 10)
+##dt_boost10
+##summary(dt_boost10) 
+##plot(dt_boost10)
+```
+
+
+## KNN: 
+I will now try to use KNN with k = sqrt(the number of features).</br>
+I will experiment with this first, and I will tune the model in later sections. </br>
+```{r}
+## Run knn function
+k.value<- round(sqrt(length(indo.contraceptives)),digits = 0)
+contraceptive.knn <- knn(train[,c(-1)],test[,c(-1)], cl= train$contraceptive,k= k.value)
+ 
+## Create confusion matrix
+ tab <- table(contraceptive.knn,test$contraceptive)
+ accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+ accuracy(tab)
+## Print the accuracy
+print(sprintf("The accuracy of knn using hold out method: %.3f percent", accuracy(tab)))
+```
+
+</br> 
+The accuracy of Knn is much better than the decision tree in the first implementation! </br>
+Let us see if we can improve the model further by tuning the parameters using cross validation.</br>
+```{r}
+## Model tuning
+indo.contraceptives$contraceptive<- as.factor(indo.contraceptives$contraceptive)
+knn.cross <- tune.knn(x = indo.contraceptives[,-6], y = indo.contraceptives[,6],k = 2:20,tunecontrol=tune.control(sampling = "cross"), cross=10)
+summary(knn.cross)
+plot(knn.cross)
+```
+</br>
+It looks like the optimal value for k is 18. I will run the model again, and see if improved accuracy is  achieved. </br> 
+```{r}
+## Training the model with k =18
+contraceptive.knn <- knn(train[,c(-1)],test[,c(-1)],cl=train$contraceptive,k= 18)
+
+## Creating confusion matrix
+ tab <- table(contraceptive.knn,test$contraceptive)
+ accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+ accuracy(tab)
+print(sprintf("The accuracy of knn after tunning: %.3f percent", accuracy(tab)))
+```
+</br>
+Indeed! </br>
+The accuracy is now around 98%!
+</br>
+Very good, Now I will try another model</br>
+
+## Neural Network: 
+
+```{r}
+## Training the model 
+contraceptive.nnet <- nnet(contraceptive ~ . , data = train[,c(-1)], size = 1)
+## Classify the testing data
+pred.nn<-predict(contraceptive.nnet, newdata = test[,c(-1)], type = "class")
+## Confusion matrix
+table(pred.nn,test$contraceptive)
+## Calculate accuracy
+tab <- table(pred.nn,test$contraceptive)
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+accuracy(tab)
+print(sprintf("The accuracy of NN with a single node: %.3f percent", accuracy(tab)))
+```
+</br>
+The accuracy of the neural network with one hidden node is not satisfactory at all. I will try to increase the number of nodes and see if that will help improve the accuracy.</br>
+
+```{r}
+## Data frame to hold NN accuracy and number of correct predictions
+contraceptive_NN_accuracy <- data.frame(nodes = c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20), correct_predictions = c(0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
+
+## Looping for 20 nodes
+for (i in 1:20) {
+  set.seed(250)
+  contraceptive.NN.i <- nnet(contraceptive ~ ., data = train[,c(-1)], size=i)  
+  contraceptive.NN.Predictions.i<- predict(contraceptive.NN.i,     test[,c(-1)], type="class")
+  contraceptive_NN_accuracy[i,2] <- sum(contraceptive.NN.Predictions.i == test$contraceptive)
+}
+## Plotting the different NN settings
+plot.data.nn<- mutate(contraceptive_NN_accuracy, accuracy = round((correct_predictions/148)*100,2))
+
+## Plotting the different number of nodes
+ggplot(data = plot.data.nn, aes(x=nodes, y=accuracy)) + 
+  geom_point() + 
+  geom_line() +
+  scale_x_continuous(breaks = c(1:20)) +
+  scale_y_continuous(breaks = c(84:91)) +
+  ggtitle("NN Accuracy") +
+  xlab("Hidden Nodes") + 
+  ylab("Accuracy Percentage")
+```
+</br>
+It looks like the best accuracy can be achieved with 7 nodes.
+</br>
+```{r}
+## Training the model 
+contraceptive.nnet <- nnet(contraceptive ~ . , data = train[,c(-1)], size = 7)
+## Classify the testing data
+pred.nn<-predict(contraceptive.nnet, newdata = test[,c(-1)], type = "class")
+## Confusion matrix
+table(pred.nn,test$contraceptive)
+## Calculate accuracy
+tab <- table(pred.nn,test$contraceptive)
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+accuracy(tab)
+print(sprintf("The accuracy of NN with 7 nodes: %.3f percent", accuracy(tab)))
+```
+</br>
+The accuracy indeed increased after adding more nodes. However, it is still not impressive. kNN wins so far.</br>
+I will try to test the neural network with cross validation. </br>
+
+```{r}
+set.seed(123)
+folds <- split(indo.contraceptives, cut(sample(1:nrow(indo.contraceptives)),10))
+errs <- rep(NA, length(folds))
+for (i in 1:length(folds)) {
+ test <- ldply(folds[i], data.frame)
+ train <- ldply(folds[-i], data.frame)
+ ## Setting the target variable as factor 
+ train[,7]<-as.factor(train[,7])
+ test[,7]<-as.factor(test[,7])
+ tmp.model <- nnet(contraceptive~., data = train[,-1], size = 7)
+ tmp.predict <- predict(tmp.model, newdata = test[,-1], type = "class")
+ conf.mat <- table(test$contraceptive, tmp.predict)
+ errs[i] <- 1-sum(diag(conf.mat))/sum(conf.mat)
+}
+print(sprintf("average error using k-fold cross-validation: %.3f percent", 100*mean(errs)))
+```
+</br>
+The average error is high! </br>
+
+## Performance Improvement:
+In this section, I will try to improve the performance further by using ensembles. </br>
+First I will use bagging. </br>
+<b> Bagging: </b></br>
+```{r, warning = FALSE}
+## Training the model
+contraceptive.bagging <- randomForest(contraceptive ~ . , data = train[,c(-1)], mtry = ncol(train)- 1)
+## Evaluation 
+predict.bagging<- predict(contraceptive.bagging, newdata = test[,c(-1)], type = "class")
+## Confusion matrix
+table(predict.bagging,test$contraceptive)
+## Calculate accuracy
+tab <- table(predict.bagging,test$contraceptive)
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+accuracy(tab)
+print(sprintf("The accuracy of bagging: %.3f percent", accuracy(tab)))
+
+##Confusion matrix
+##mean(test$contraceptive == predict(contraceptive.bagging, newdata = test[,c(-1)], type = "class"))
+
+```
+</br>
+Next, I will try bagging with 25 bags.</br>
+
+```{r, warning = FALSE}
+RNGversion("3.5.2")
+set.seed(300)
+## Training the model
+mybag <- bagging(contraceptive ~ ., data = train[,c(-1)], nbagg = 25)
+## Making predictions
+bagging.Prediction<- predict(mybag, test[,c(-1)])
+tab<-table(bagging.Prediction, test$contraceptive)
+accuracy <- function(x){sum(diag(x)/(sum(rowSums(x)))) * 100}
+accuracy(tab)
+print(sprintf("The accuracy of bagging with 25 bags: %.3f percent", accuracy(tab)))
+
+```
+
+</br>Both implementations of bagging give similar result. </br>
+
+<b>Ensemble:</b></br>
+I will now combine the models, creating an ensemble model using majority vote: </br>
+```{r}
+## Creating a function to make prediction for each model
+## First decision tree
+get_dt1_pred<- function (x){
+  return(predict(contraceptive.dt, x , type = "class"))
+}
+## Second decision tree
+get_dt2_pred<- function (x){
+  return(predict(dt.2, x))
+}
+## Knn
+get_knn_pred<- function (x){
+ return(knn(train[,c(-1)],x,cl=train$contraceptive,k= 17))
+} 
+## Neural network
+get_nn_pred<- function (x){
+ return(predict(contraceptive.nnet, newdata = x, type = "class"))
+}
+
+## Ensemble method 
+ensemble.model.predictions <- function(x){
+  ## Getting all the predictions from the previous models
+  predictions.all<- data.frame(get_dt1_pred(x),get_dt2_pred(x),get_knn_pred(x),get_nn_pred(x))
+  ## Taking the majority vote
+  predictions.all <- predictions.all %>%
+    mutate(ensemble = apply(predictions.all[,1:length(predictions.all)], 1, mfv))
+  names(predictions.all)<- c("decision tree1","decision tree2","kNN","NN","ensemble")
+  return(predictions.all)
+}
+ensemble.model.predictions(test[,-1])
+```
+</br>
+I used the ensemble on the testing data. Now, I will evaluate the accuracy of the ensemble prediction against each individual model.</br>
+
+```{r}
+rep<- ensemble.model.predictions(test[,-1])
+final.report<- data.frame(rep[,c(1:4)])
+temp.x<- data.frame(NA)
+for (i in 1:length(rep$ensemble)) {
+temp.x<-rbind(temp.x,unlist(rep$ensemble[[i]][[1]])) 
+}
+final.report<-cbind(final.report,temp.x[-1,])
+final.report<-cbind(final.report,test$contraceptive)
+names(final.report)<- c("decision tree1","decision tree2","kNN","NN","ensemble", "actual")
+## Let us check what we have 
+head(final.report)
+```
+
+</br>
+Looks perfect! </br>
+Now we need to calculate the accuracy for each prediction.</br>
+```{r}
+AC.1<- accuracy(table(final.report$actual, final.report$`decision tree1`))
+AC.2<- accuracy(table(final.report$actual, final.report$`decision tree2`))
+AC.3<-accuracy(table(final.report$actual, final.report$kNN))
+AC.4<-accuracy(table(final.report$actual, final.report$NN))
+AC.5<-accuracy(table(final.report$actual, final.report$ensemble))
+accuracy.plot<- c(AC.1,AC.2,AC.3,AC.4,AC.5)
+##colnames(accuracy.plot)<-c("dt1","dt2","kNN","NN","ensamble")
+plot(accuracy.plot)
+
+```
+</br>
+The worst accuracy is the NN then the decision tree in the first implementation. </br>
+The accuracy of the ensemble is actually worse than some of the individual models. This could be because the ensemble takes the majority vote. Sometimes, the we will have ties (2 models predict some class and two -better models- predict another). In this case the ensemble could go with the weaker prediction since there is no weights assigned to each model based on accuracy. </br>
+
+Now, I will try to make a prediction using the ensemble.</br>
+Let us say that we have a women who is 28 years old. 
+She has 1 child. She is Muslim, exposed to media, she is working and she has middle education. Her husband has low middle education as well. Their living index is in the middle and the class of her husbands job is 3. </br>
+What will be her contraceptive method? </br>
+
+```{r}
+head(test[12,c(-1)])
+## Age = 28
+## num.children=1
+## Religion=2
+## Work=2
+## Media= 1
+## Contraceptive = ? 
+## W.education.low= 0
+## W.education. mid=1
+## h.education.low=0
+## h.education.mid=1
+## h.job.first=0
+## h.job.second=0
+## h.job.third=1
+## living.index.low=0
+## living.index.mid=1
+## Let us see what the ensemble predicts for her
+print(ensemble.model.predictions(test[12,c(-1)]))
+#age<- 28 - mean(indo.contraceptives$w.age)/ sd(indo.contraceptives$w.age)
+#child<- 1 - mean(indo.contraceptives$num.children)/sd(indo.contraceptives$num.children)
+#case<- data.frame(age,child,2,2,1,0,0,1,0,1,0,0,1,0,1)
+#case[,6]<- as.factor(case[,6])
+#colnames(case)<- c("w.age","num.children","w.religion","w.work","media","contraceptive","w.education.low","w.education.mid","h.education.low","h.education.mid","h.job.first","h.job.second","h.job.third","living.index.low","living.index.mid")
+#print(ensemble.model.predictions(case))
+```
+
+</br>
+The ensemble indeed predicts that she is not using any contraceptives.</br>
+
+## Deployment: 
+This is the last step of the CRISP-DM, after reviewing the models with the business leaders, we can discuss how to deploy it. 
+
+## Ref
+1.Dua, D. and Graff, C. (2019). UCI Machine Learning Repository [http://archive.ics.uci.edu/ml]. Irvine, CA: University of California, School of Information and Computer Science.
+2. https://dhsprogram.com/pubs/pdf/SR9/SR9.pdf
+3. https://en.wikipedia.org/wiki/Indonesia
