@@ -4,4 +4,4 @@ Learning at Khoury College of Computer Science- Northeastern University, Spring 
 
 For this project, I use supervised machine learning techniques to model the contraceptive method of choice dataset from UCI machine learning repository available [here](https://archive.ics.uci.edu/ml/datasets/Contraceptive+Method+Choice). 
 
-Summary of the project available [here] (https://www.youtube.com/watch?v=oI1VhwSVwLU).
+Summary of the project available [here](https://www.youtube.com/watch?v=oI1VhwSVwLU).
